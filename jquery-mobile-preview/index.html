@@ -103,10 +103,11 @@
         console.log(file);
         readFile(file, function (text) {
             var url = URL.createObjectURL(new Blob([text], {type: "text/javascript"}));
-
-            headerFiles[file.lastModified] = {
+            console.log(file);
+            headerFiles[file.id] = {
+                id: file.id,
                 name: file.name,
-                type: file.type,
+                type: getFileType(file),
                 size: file.size,
                 url: url
             };
@@ -116,18 +117,48 @@
     }
     $(".header-files").delegate(".jquery-file-btn", 'click', function(){
         var response = confirm("Do you really want to remove "+$(this).attr('data-name'));
-        delete headerFiles[$(this).attr('data-id')];
-        $(this).remove();
+        if(response) {
+		delete headerFiles[$(this).attr('data-id')];
+		$(this).remove();
+	}
     })
     $("#temp-file").change(function(){
         window.x = this
         var files = this.files;
         for(var i=0; i<files.length; i++) {
+            // files[i].type = getFileType(files[i]);
+            // console.log("after type change("+getFileType(files[i])+"): ", files[i]);
+            var dateObject = new Date();
+            files[i].id = parseInt((new Date()).getTime() +""+ parseInt(Math.random()*1000000));
             addHeaderFile(files[i], function(file){
-                $('<div class="jquery-file-btn btn" data-name="'+file.name+'"data-id="'+file.lastModified+'"><i class="icon-file"></i>'+file.name+'</div>').insertBefore($(".add-file"));
+                console
+                $('<div class="jquery-file-btn btn" data-name="'+file.name+'"data-id="'+file.id+'"><i class="icon-file"></i>'+file.name+'</div>').insertBefore($(".add-file"));
             });
         }
     });
+    function getFileType(file) {
+        var identifiedTypes = {
+            'text/css': true,
+            'application/x-javascript': true
+        };
+        var extensions = {
+            'js': 'application/x-javascript',
+            'css': 'text/css',
+            'htm': 'text/html',
+            'html': 'text/html'
+        };
+        if(!identifiedTypes[file.type]){
+            var name = file.name;
+            var ext = name.split('.').pop();
+            if(extensions[ext]){
+                return extensions[ext];
+            } else {
+                throw new Error('Unidentified extension: ' + ext);
+            }
+        } else {
+            return file.type;
+        }
+    }
     function printHeaderFiles() {
         var header = "";
         for(var x in headerFiles) {
@@ -140,19 +171,20 @@
         }
         return header;
     }
+    var preview = function(editor) {
+        var html = "<!DOCTYPE html><html><head><title></title><meta charset='UTF-8'/>"+
+            printHeaderFiles()+
+            editor.getValue() + 
+            '</body></html>';
+        viewport.src = URL.createObjectURL(new Blob([html], {type: "text/html"}));
+    }
     var viewport = $(".view-port")[0];
     var editor = ace.edit("editor");
     editor.getSession().setMode("ace/mode/html");
     editor.commands.addCommand({
         name: 'refresh-viewport',
         bindKey: {win: 'Ctrl-Enter',  mac: 'Command-Enter'},
-        exec: function(editor) {
-            var html = "<!DOCTYPE html><html><head><title></title><meta charset='UTF-8'/>"+
-                printHeaderFiles()+
-                editor.getValue() + 
-                '</body></html>';
-            viewport.src = URL.createObjectURL(new Blob([html], {type: "text/html"}));
-        },
+        exec: preview,
         readOnly: true // false if this command should not apply in readOnly mode
     });
 
