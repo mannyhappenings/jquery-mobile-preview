@@ -21,8 +21,6 @@
         border-width: 25px 10px 10px;
         box-shadow: 0px 0px 5px 5px rgba(0, 0, 0, 0.3);
     }
-    .jquery-files {
-    }
     #temp-file {
         display: none;
     }
@@ -64,6 +62,19 @@
     <input type="file" multiple="true" id="temp-file">
 <script src="ace/ace.js" type="text/javascript" charset="utf-8"></script>
 <script type="text/javascript" charset="utf-8">
+    function Store() {
+        this.store = localStorage
+    }
+    Store.prototype = {
+        set: function(key, val) {
+            this.store[key] = val
+        },
+        get: function(key) {
+            return this.store[key]
+        }
+    }
+    var store = new Store()
+
     function readFile(file_blob, callback, type){
       if(!(file_blob instanceof File || file_blob instanceof Blob)) return console.error("Invalid file inputs.");
       var typeReplace = {
@@ -93,7 +104,6 @@
             }
         })
     }
-
 
     var headerFiles = {};
     $(".add-file").click(function(){
@@ -131,7 +141,6 @@
             var dateObject = new Date();
             files[i].id = parseInt((new Date()).getTime() +""+ parseInt(Math.random()*1000000));
             addHeaderFile(files[i], function(file){
-                console
                 $('<div class="jquery-file-btn btn" data-name="'+file.name+'"data-id="'+file.id+'"><i class="icon-file"></i>'+file.name+'</div>').insertBefore($(".add-file"));
             });
         }
@@ -172,11 +181,55 @@
         return header;
     }
     var preview = function(editor) {
+        var editorCode = editor.getValue();
         var html = "<!DOCTYPE html><html><head><title></title><meta charset='UTF-8'/>"+
             printHeaderFiles()+
-            editor.getValue() + 
+            editor.getValue()+ 
             '</body></html>';
         viewport.src = URL.createObjectURL(new Blob([html], {type: "text/html"}));
+    }
+    var saveToStore = function (editor) {
+        var editorCode = editor.getValue();
+        store.set('editorCode', editorCode);
+    }
+    var restoreFromStore = function (editor) {
+        var editorCode = store.get('editorCode');
+        editor.setValue(editorCode);
+    }
+    /**
+     * Componse Multiple functions into one to run on callback
+     * @param {Function[]} functions
+     */
+    function combineHandlers() {
+        var functions = [];
+        if(arguments.length) {
+            for(var i=0; i<arguments.length; i++) {
+                if(arguments[i] instanceof Function) {
+                    functions.push(arguments[i]);
+                } else {
+                    throw new Error('non-function argument passed to `combineHandlers`');
+                }
+            }
+        }
+        return function (editor) {
+            /**
+             * @param {Function} fn
+             */
+            function executeFunction(fn) {
+                if (fn instanceof Function) {
+                    try {
+                        fn.apply(null, [editor]);
+                    } catch(err) {
+                        console.error(err)
+                    }
+                }
+            }
+            if (Array.isArray(functions)) {
+                functions.forEach(executeFunction)
+            } else {
+                executeFunction(functions)
+            }
+        }
     }
     var viewport = $(".view-port")[0];
     var editor = ace.edit("editor");
@@ -184,8 +237,9 @@
     editor.commands.addCommand({
         name: 'refresh-viewport',
         bindKey: {win: 'Ctrl-Enter',  mac: 'Command-Enter'},
-        exec: preview,
-        readOnly: true // false if this command should not apply in readOnly mode
+        exec: combineHandlers(saveToStore, preview),
+        readOnly: true // false if this command should not apply in readOnly mode,
+
     });
 
     $(document).ready(function(){
@@ -205,6 +259,7 @@
         })
         $("#is-landscape").data('checked', $("#is-landscape")[0].checked);
     })
+    restoreFromStore(editor);
 </script>
 </body>
 </html>
